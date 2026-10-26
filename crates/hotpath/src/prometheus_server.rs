@@ -16,7 +16,7 @@ use std::thread;
 use tiny_http::{Header, Request, Response, Server};
 
 use crate::prometheus_server::families::{
-    to_protobuf, to_text, Family, FamilyKind, HistogramValue, Sample, SampleValue,
+    Family, FamilyKind, HistogramValue, Sample, SampleValue, to_protobuf, to_text,
 };
 
 pub(crate) static PROMETHEUS_PORT: LazyLock<u16> = LazyLock::new(|| {
@@ -443,10 +443,23 @@ fn collect_functions_alloc(families: &mut Vec<Family>) -> Option<()> {
     let Some(functions) = alloc else {
         return Some(());
     };
-    if functions.is_empty() {
-        return Some(());
-    }
+    append_functions_alloc(families, &functions);
+    Some(())
+}
 
+pub(crate) fn render_alloc_prefix(functions: Vec<crate::functions::RawFunctionAlloc>) -> String {
+    let mut families = Vec::new();
+    append_functions_alloc(&mut families, &functions);
+    families::to_text(&families)
+}
+
+fn append_functions_alloc(
+    families: &mut Vec<Family>,
+    functions: &[crate::functions::RawFunctionAlloc],
+) {
+    if functions.is_empty() {
+        return;
+    }
     let labels = |f: &crate::functions::RawFunctionAlloc| vec![("function", f.name.to_string())];
 
     families.push(Family {
@@ -538,8 +551,6 @@ fn collect_functions_alloc(families: &mut Vec<Family>) -> Option<()> {
             samples: allocs_samples,
         });
     }
-
-    Some(())
 }
 
 #[cfg_attr(feature = "hotpath-meta", hotpath_meta::measure(log = true))]
